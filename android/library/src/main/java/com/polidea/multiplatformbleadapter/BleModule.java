@@ -710,6 +710,123 @@ public class BleModule implements BleAdapter {
     }
 
     @Override
+    public void writeCharacteristic(int characteristicIdentifier,
+                                    byte[] value,
+                                    boolean withResponse,
+                                    String transactionId,
+                                    OnSuccessCallback<Characteristic> onSuccessCallback,
+                                    OnErrorCallback onErrorCallback) {
+        final Characteristic characteristic = getCharacteristicOrEmitError(characteristicIdentifier, onErrorCallback);
+        if (characteristic == null) {
+            return;
+        }
+
+        writeCharacteristicWithValue(
+                characteristic,
+                value,
+                withResponse,
+                transactionId,
+                onSuccessCallback,
+                onErrorCallback
+        );
+    }
+
+
+    @Override
+    public void longWriteCharacteristic(String deviceIdentifier,
+                                        String serviceUUID,
+                                        String characteristicUUID,
+                                        String valueBase64,
+                                        boolean withResponse,
+                                        String transactionId,
+                                        OnSuccessCallback<Characteristic> onSuccessCallback,
+                                        OnErrorCallback onErrorCallback) {
+        final Characteristic characteristic = getCharacteristicOrEmitError(
+                deviceIdentifier, serviceUUID, characteristicUUID, onErrorCallback);
+        if (characteristic == null) {
+            return;
+        }
+
+        longWriteCharacteristicWithValue(
+                characteristic,
+                valueBase64,
+                withResponse,
+                transactionId,
+                onSuccessCallback,
+                onErrorCallback
+        );
+    }
+
+    @Override
+    public void longWriteCharacteristic(int characteristicIdentifier,
+                                    String valueBase64,
+                                    boolean withResponse,
+                                    String transactionId,
+                                    OnSuccessCallback<Characteristic> onSuccessCallback,
+                                    OnErrorCallback onErrorCallback) {
+        final Characteristic characteristic = getCharacteristicOrEmitError(characteristicIdentifier, onErrorCallback);
+        if (characteristic == null) {
+            return;
+        }
+
+        longWriteCharacteristicWithValue(
+                characteristic,
+                valueBase64,
+                withResponse,
+                transactionId,
+                onSuccessCallback,
+                onErrorCallback
+        );
+    }
+
+    @Override
+    public void longWriteCharacteristic(String deviceIdentifier,
+                                        String serviceUUID,
+                                        String characteristicUUID,
+                                        byte[] value,
+                                        boolean withResponse,
+                                        String transactionId,
+                                        OnSuccessCallback<Characteristic> onSuccessCallback,
+                                        OnErrorCallback onErrorCallback) {
+        final Characteristic characteristic = getCharacteristicOrEmitError(
+                deviceIdentifier, serviceUUID, characteristicUUID, onErrorCallback);
+        if (characteristic == null) {
+            return;
+        }
+
+        longWriteCharacteristicWithValue(
+                characteristic,
+                value,
+                withResponse,
+                transactionId,
+                onSuccessCallback,
+                onErrorCallback
+        );
+    }
+
+    @Override
+    public void longWriteCharacteristic(int characteristicIdentifier,
+                                        byte[] value,
+                                        boolean withResponse,
+                                        String transactionId,
+                                        OnSuccessCallback<Characteristic> onSuccessCallback,
+                                        OnErrorCallback onErrorCallback) {
+        final Characteristic characteristic = getCharacteristicOrEmitError(characteristicIdentifier, onErrorCallback);
+        if (characteristic == null) {
+            return;
+        }
+
+        writeCharacteristicWithValue(
+                characteristic,
+                value,
+                withResponse,
+                transactionId,
+                onSuccessCallback,
+                onErrorCallback
+        );
+    }
+
+    @Override
     public void monitorCharacteristicForDevice(String deviceIdentifier,
                                                String serviceUUID,
                                                String characteristicUUID,
@@ -1503,11 +1620,59 @@ public class BleModule implements BleAdapter {
             return;
         }
 
+        writeCharacteristicWithValue(characteristic, value, response, transactionId, onSuccessCallback, onErrorCallback);
+    }
+
+    private void writeCharacteristicWithValue(final Characteristic characteristic,
+                                              final byte[] value,
+                                              final Boolean response,
+                                              final String transactionId,
+                                              OnSuccessCallback<Characteristic> onSuccessCallback,
+                                              OnErrorCallback onErrorCallback) {
+
         characteristic.setWriteType(response ?
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT :
                 BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
 
         safeWriteCharacteristicForDevice(
+                characteristic,
+                value,
+                transactionId,
+                onSuccessCallback,
+                onErrorCallback);
+    }
+
+    private void longWriteCharacteristicWithValue(final Characteristic characteristic,
+                                                  final String valueBase64,
+                                                  final Boolean response,
+                                                  final String transactionId,
+                                                  OnSuccessCallback<Characteristic> onSuccessCallback,
+                                                  OnErrorCallback onErrorCallback) {
+        final byte[] value;
+        try {
+            value = Base64Converter.decode(valueBase64);
+        } catch (Throwable error) {
+            onErrorCallback.onError(
+                    BleErrorUtils.invalidWriteDataForCharacteristic(valueBase64,
+                            UUIDConverter.fromUUID(characteristic.getUuid())));
+            return;
+        }
+
+        longWriteCharacteristicWithValue(characteristic, value, response, transactionId, onSuccessCallback, onErrorCallback);
+    }
+
+    private void longWriteCharacteristicWithValue(final Characteristic characteristic,
+                                                  final byte[] value,
+                                                  final Boolean response,
+                                                  final String transactionId,
+                                                  OnSuccessCallback<Characteristic> onSuccessCallback,
+                                                  OnErrorCallback onErrorCallback) {
+
+        characteristic.setWriteType(response ?
+                BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT :
+                BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+
+        safeLongWriteCharacteristicForDevice(
                 characteristic,
                 value,
                 transactionId,
@@ -1529,6 +1694,53 @@ public class BleModule implements BleAdapter {
 
         final Single<byte[]> subscription = connection
                 .writeCharacteristic(characteristic.gattCharacteristic, value)
+                .doOnDispose(new Action() {
+                    @Override
+                    public void run() {
+                        safeExecutor.error(BleErrorUtils.cancelled());
+                        pendingTransactions.removeDisposable(transactionId);
+                    }
+                });
+
+        DisposableSingleObserver<byte[]> observer = new DisposableSingleObserver<byte[]>() {
+            @Override
+            public void onSuccess(byte[] bytes) {
+                characteristic.logValue("Write to", bytes);
+                characteristic.setValue(bytes);
+                safeExecutor.success(new Characteristic(characteristic));
+                pendingTransactions.removeDisposable(transactionId);
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                safeExecutor.error(errorConverter.toError(e));
+                pendingTransactions.removeDisposable(transactionId);
+            }
+        };
+        subscription.subscribe(observer);
+
+        pendingTransactions.replaceDisposable(transactionId, observer);
+    }
+
+    private void safeLongWriteCharacteristicForDevice(final Characteristic characteristic,
+                                                      final byte[] value,
+                                                      final String transactionId,
+                                                      final OnSuccessCallback<Characteristic> onSuccessCallback,
+                                                      final OnErrorCallback onErrorCallback) {
+        final RxBleConnection connection = getConnectionOrEmitError(characteristic.getDeviceId(), onErrorCallback);
+        if (connection == null) {
+            return;
+        }
+
+        final SafeExecutor<Characteristic> safeExecutor = new SafeExecutor<>(onSuccessCallback, onErrorCallback);
+
+        Observable<byte[]> observable = connection
+                .createNewLongWriteBuilder()
+                .setCharacteristic(characteristic.gattCharacteristic)
+                .setBytes(value)
+                .build();
+        final Single<byte[]> subscription = observable
+                .single(value)
                 .doOnDispose(new Action() {
                     @Override
                     public void run() {

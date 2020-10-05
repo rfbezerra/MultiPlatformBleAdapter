@@ -157,6 +157,50 @@ public interface BleAdapter {
             OnSuccessCallback<Characteristic> onSuccessCallback,
             OnErrorCallback onErrorCallback);
 
+    void writeCharacteristic(
+            int characteristicIdentifier,
+            byte[] value,
+            boolean withResponse,
+            String transactionId,
+            OnSuccessCallback<Characteristic> onSuccessCallback,
+            OnErrorCallback onErrorCallback);
+
+    void longWriteCharacteristic(
+            String deviceIdentifier,
+            String serviceUUID,
+            String characteristicUUID,
+            String valueBase64,
+            boolean withResponse,
+            String transactionId,
+            OnSuccessCallback<Characteristic> onSuccessCallback,
+            OnErrorCallback onErrorCallback);
+
+    void longWriteCharacteristic(
+            int characteristicIdentifier,
+            String valueBase64,
+            boolean withResponse,
+            String transactionId,
+            OnSuccessCallback<Characteristic> onSuccessCallback,
+            OnErrorCallback onErrorCallback);
+
+    void longWriteCharacteristic(
+            String deviceIdentifier,
+            String serviceUUID,
+            String characteristicUUID,
+            byte[] value,
+            boolean withResponse,
+            String transactionId,
+            OnSuccessCallback<Characteristic> onSuccessCallback,
+            OnErrorCallback onErrorCallback);
+
+    void longWriteCharacteristic(
+            int characteristicIdentifier,
+            byte[] value,
+            boolean withResponse,
+            String transactionId,
+            OnSuccessCallback<Characteristic> onSuccessCallback,
+            OnErrorCallback onErrorCallback);
+
     void monitorCharacteristicForDevice(
             String deviceIdentifier,
             String serviceUUID,
